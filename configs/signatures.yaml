@@ -1,0 +1,167 @@
+# Application fingerprinting signatures
+# This file contains patterns for identifying different applications
+
+applications:
+  wordpress:
+    name: "WordPress"
+    priority: 100
+    tables:
+      required:
+        - "wp_options"
+        - "wp_users"
+        - "wp_posts"
+      optional:
+        - "wp_comments"
+        - "wp_links"
+        - "wp_terms"
+        - "wp_term_taxonomy"
+    fields:
+      wp_options:
+        - "option_name"
+        - "option_value"
+        - "autoload"
+      wp_users:
+        - "ID"
+        - "user_login"
+        - "user_pass"
+        - "user_email"
+    version_detection:
+      table: "wp_options"
+      field: "option_value"
+      key: "db_version"
+    plugins:
+      woocommerce:
+        tables: ["wp_woocommerce_*", "woocommerce_*"]
+      yoast_seo:
+        tables: ["wp_yoast_*", "yoast_indexable"]
+
+  drupal:
+    name: "Drupal"
+    priority: 90
+    tables:
+      drupal7:
+        required: ["users", "node", "system", "variable"]
+        optional: ["users_roles", "node_revisions"]
+      drupal8:
+        required: ["users_field_data", "node_field_data", "config"]
+        optional: ["user__roles", "node__body"]
+    fields:
+      users:
+        - "uid"
+        - "name"
+        - "pass"
+        - "mail"
+    version_detection:
+      table: "system"
+      field: "schema_version"
+
+  joomla:
+    name: "Joomla"
+    priority: 85
+    tables:
+      required: ["users", "content", "extensions"]
+      optional: ["categories", "menu", "modules"]
+    fields:
+      users:
+        - "id"
+        - "name"
+        - "username"
+        - "email"
+        - "password"
+
+  laravel:
+    name: "Laravel"
+    priority: 95
+    tables:
+      required: ["migrations", "users", "password_resets"]
+      optional: ["jobs", "failed_jobs", "sessions"]
+    fields:
+      users:
+        - "id"
+        - "name"
+        - "email"
+        - "password"
+        - "remember_token"
+      migrations:
+        - "id"
+        - "migration"
+        - "batch"
+
+  django:
+    name: "Django"
+    priority: 90
+    tables:
+      required: ["django_migrations", "auth_user", "django_session"]
+      optional: ["django_admin_log", "django_content_type"]
+    fields:
+      auth_user:
+        - "id"
+        - "username"
+        - "password"
+        - "email"
+        - "is_superuser"
+
+  magento:
+    name: "Magento"
+    priority: 80
+    tables:
+      required: ["admin_user", "core_config_data", "catalog_product_entity"]
+      optional: ["sales_flat_order", "customer_entity"]
+    fields:
+      admin_user:
+        - "user_id"
+        - "username"
+        - "password"
+        - "email"
+
+  prestashop:
+    name: "PrestaShop"
+    priority: 75
+    tables:
+      required: ["ps_customer", "ps_configuration", "ps_product"]
+      optional: ["ps_orders", "ps_category"]
+    fields:
+      ps_customer:
+        - "id_customer"
+        - "email"
+        - "passwd"
+        - "firstname"
+        - "lastname"
+
+# Sensitive data patterns
+sensitive_patterns:
+  passwords:
+    field_patterns: ["*password*", "*passwd*", "*pwd*", "*hash*"]
+    data_patterns:
+      - "(?i).*password.*"
+      - "(?i).*passwd.*"
+      - "(?i).*hash.*"
+
+  api_keys:
+    field_patterns: ["*api_key*", "*secret*", "*token*", "*key*"]
+    data_patterns:
+      - "(?i).*api[_-]?key.*"
+      - "(?i).*secret.*"
+      - "(?i).*token.*"
+
+  emails:
+    field_patterns: ["*email*", "*mail*"]
+    data_patterns:
+      - "[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}"
+
+  phones:
+    field_patterns: ["*phone*", "*mobile*", "*tel*"]
+    data_patterns:
+      - "\\+?[1-9]\\d{1,14}"
+      - "\\(?\\d{3}\\)?[-. ]?\\d{3}[-. ]?\\d{4}"
+
+  credit_cards:
+    field_patterns: ["*credit*", "*card*", "*payment*"]
+    data_patterns:
+      - "\\b(?:\\d{4}[- ]?){3}\\d{4}\\b"
+
+  urls:
+    field_patterns: ["*url*", "*link*", "*host*", "*domain*"]
+    data_patterns:
+      - "https?://[^<>\"']+|www\\.[^<>\"']+"
+      - "[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\\.[a-zA-Z]{2,}"

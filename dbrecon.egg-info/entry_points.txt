@@ -1,0 +1,2 @@
+[console_scripts]
+dbrecon = dbrecon.cli:main
