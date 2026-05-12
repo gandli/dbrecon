@@ -8,6 +8,28 @@ from dbrecon.scanner import SensitiveDataScanner
 from dbrecon.reporter import ReportGenerator
 
 
+DB_DRIVER_OPTION = click.option(
+    "--driver",
+    type=click.Choice(["mysql", "mssql"]),
+    default=None,
+    help="Database driver: mysql or mssql (auto-detected from port if not set)",
+)
+
+
+def _build_config(host, port, user, password, database, ssl, timeout, driver=None):
+    """Build DatabaseConnection config from CLI args."""
+    return DatabaseConnection(
+        host=host,
+        port=port,
+        user=user,
+        password=password,
+        database=database,
+        ssl_enabled=ssl,
+        timeout=timeout,
+        driver=driver,
+    )
+
+
 @click.group()
 @click.version_option(version="0.1.0")
 def main():
@@ -23,17 +45,10 @@ def main():
 @click.option("--database", help="Target database name")
 @click.option("--ssl/--no-ssl", default=False, help="Enable SSL connection")
 @click.option("--timeout", default=30, type=int, help="Connection timeout in seconds")
-def test_connection(host, port, user, password, database, ssl, timeout):
+@DB_DRIVER_OPTION
+def test_connection(host, port, user, password, database, ssl, timeout, driver):
     """Test database connection."""
-    config = DatabaseConnection(
-        host=host,
-        port=port,
-        user=user,
-        password=password,
-        database=database,
-        ssl_enabled=ssl,
-        timeout=timeout
-    )
+    config = _build_config(host, port, user, password, database, ssl, timeout, driver)
     
     db_manager = DatabaseManager(config)
     success = db_manager.connect()
@@ -67,17 +82,10 @@ def test_connection(host, port, user, password, database, ssl, timeout):
               type=click.Choice(["json", "csv", "html", "markdown", "console"]),
               default="console", help="Output format")
 @click.option("--output", "-o", help="Output file path")
-def fingerprint(host, port, user, password, database, deep, output_format, output):
+@DB_DRIVER_OPTION
+def fingerprint(host, port, user, password, database, deep, output_format, output, driver):
     """Identify applications running on the database."""
-    config = DatabaseConnection(
-        host=host,
-        port=port,
-        user=user,
-        password=password,
-        database=database,
-        ssl_enabled=False,  # Simplified for fingerprinting
-        timeout=30
-    )
+    config = _build_config(host, port, user, password, database, False, 30, driver)
     
     db_manager = DatabaseManager(config)
     
@@ -139,17 +147,10 @@ def fingerprint(host, port, user, password, database, deep, output_format, outpu
               type=click.Choice(["json", "csv", "html", "markdown", "console"]),
               default="console", help="Output format")
 @click.option("--output", "-o", help="Output file path")
-def scan_sensitive(host, port, user, password, database, data_types, output_format, output):
+@DB_DRIVER_OPTION
+def scan_sensitive(host, port, user, password, database, data_types, output_format, output, driver):
     """Scan for sensitive data in the database."""
-    config = DatabaseConnection(
-        host=host,
-        port=port,
-        user=user,
-        password=password,
-        database=database,
-        ssl_enabled=False,
-        timeout=30
-    )
+    config = _build_config(host, port, user, password, database, False, 30, driver)
     
     db_manager = DatabaseManager(config)
     
@@ -234,17 +235,10 @@ def scan_sensitive(host, port, user, password, database, data_types, output_form
               type=click.Choice(["json", "csv", "html", "markdown", "console"]),
               default="console", help="Output format")
 @click.option("--output", "-o", help="Output file path")
-def full_scan(host, port, user, password, database, deep, output_format, output):
+@DB_DRIVER_OPTION
+def full_scan(host, port, user, password, database, deep, output_format, output, driver):
     """Perform a complete security assessment."""
-    config = DatabaseConnection(
-        host=host,
-        port=port,
-        user=user,
-        password=password,
-        database=database,
-        ssl_enabled=False,
-        timeout=30
-    )
+    config = _build_config(host, port, user, password, database, False, 30, driver)
     
     db_manager = DatabaseManager(config)
     

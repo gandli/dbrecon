@@ -105,7 +105,7 @@ class TestDatabaseManager:
         result = manager.execute_query("SHOW DATABASES")
         
         assert result == expected_result
-        mock_cursor.execute.assert_called_once_with("SHOW DATABASES", None)
+        mock_cursor.execute.assert_called_once_with("SHOW DATABASES")
         mock_cursor.fetchall.assert_called_once()
 
     @patch('mysql.connector.connect')
@@ -164,7 +164,7 @@ class TestDatabaseManager:
         result = manager.get_databases()
         
         assert result == ["information_schema", "mysql", "test_db"]
-        mock_cursor.execute.assert_called_once_with("SHOW DATABASES", None)
+        mock_cursor.execute.assert_called_once_with("SHOW DATABASES")
 
     @patch('mysql.connector.connect')
     def test_get_tables(self, mock_connect, db_config, mock_connection):
@@ -182,7 +182,7 @@ class TestDatabaseManager:
         
         assert result == ["users", "posts", "comments"]
         mock_cursor.execute.assert_called_once_with(
-            "SHOW TABLES FROM test_db", None
+            "SHOW TABLES FROM test_db"
         )
 
     @patch('mysql.connector.connect')

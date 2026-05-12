@@ -5,13 +5,41 @@ from datetime import datetime
 
 class DatabaseConnection(BaseModel):
     """Database connection configuration."""
+
+    class Config:
+        json_schema_extra = {
+            "examples": [
+                {
+                    "host": "localhost",
+                    "port": 3306,
+                    "user": "root",
+                    "password": "secret",
+                    "database": "mydb",
+                    "driver": "mysql",
+                },
+                {
+                    "host": "localhost",
+                    "port": 1433,
+                    "user": "sa",
+                    "password": "Secret123!",
+                    "database": "mydb",
+                    "driver": "mssql",
+                },
+            ]
+        }
+
     host: str = Field(..., description="Database host address")
-    port: int = Field(3306, description="Database port")
+    port: int = Field(3306, description="Database port (3306=MySQL, 1433=MSSQL)")
     user: str = Field(..., description="Database username")
     password: str = Field(..., description="Database password")
     database: Optional[str] = Field(None, description="Target database name")
     ssl_enabled: bool = Field(False, description="Enable SSL connection")
     timeout: int = Field(30, description="Connection timeout in seconds")
+    driver: Optional[str] = Field(
+        None,
+        description="Database driver: 'mysql' or 'mssql'. "
+        "Auto-detected from port if not specified.",
+    )
 
 
 class TableInfo(BaseModel):
