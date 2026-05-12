@@ -141,8 +141,8 @@ class FingerprintEngine:
             return None
         
         try:
-            query = f"SELECT {field} FROM {database}.{table} WHERE {field} LIKE %s LIMIT 1"
-            results = db_manager.execute_query(query, (f"%{key}%",))
+            query = f"SELECT {field} FROM {database}.{table} WHERE option_name = %s LIMIT 1"
+            results = db_manager.execute_query(query, (key,))
             
             if results and len(results) > 0 and len(results[0]) > 0:
                 # Extract version from result (implementation depends on specific app)
