@@ -503,3 +503,363 @@ class TestIntegrationEndToEnd:
         assert len(parsed["recommendations"]) == 3
 
         manager.disconnect()
+
+
+class TestIntegrationRichData:
+    """Integration tests with rich dataset (21 users, 5 API keys, 5 profiles, etc.)."""
+
+    @pytest.fixture(autouse=True)
+    def _check_connection(self):
+        try:
+            conn = mysql.connector.connect(**DB_CONFIG)
+            conn.close()
+        except Exception:
+            pytest.skip("MySQL container not available")
+
+    def test_user_count(self):
+        """应返回 21 个用户."""
+        from dbrecon.database import DatabaseManager
+        from dbrecon.models import DatabaseConnection
+
+        config = DatabaseConnection(**DB_CONFIG)
+        manager = DatabaseManager(config)
+        manager.connect()
+        results = manager.execute_query("SELECT COUNT(*) FROM wp_users")
+        manager.disconnect()
+
+        assert results[0][0] == 21
+
+    def test_password_hash_field_detected(self):
+        """password_hash 字段名匹配 *hash* 通配符，应被检测为密码."""
+        from dbrecon.database import DatabaseManager
+        from dbrecon.scanner import SensitiveDataScanner
+        from dbrecon.models import DatabaseConnection, TableInfo
+
+        config = DatabaseConnection(**DB_CONFIG)
+        manager = DatabaseManager(config)
+        manager.connect()
+
+        tables = [
+            TableInfo(name="wp_users", columns=[
+                {"name": "password_hash", "type": "varchar(255)"},
+            ])
+        ]
+
+        scanner = SensitiveDataScanner()
+        results = scanner.scan(manager, "testdb", tables)
+        manager.disconnect()
+
+        pwd_results = [r for r in results if r.data_type == "passwords"]
+        assert len(pwd_results) == 1
+        assert pwd_results[0].field == "password_hash"
+
+    def test_email_addresses_detected(self):
+        """应检测到 21 个邮箱地址."""
+        from dbrecon.database import DatabaseManager
+        from dbrecon.scanner import SensitiveDataScanner
+        from dbrecon.models import DatabaseConnection, TableInfo
+
+        config = DatabaseConnection(**DB_CONFIG)
+        manager = DatabaseManager(config)
+        manager.connect()
+
+        tables = [
+            TableInfo(name="wp_users", columns=[
+                {"name": "user_email", "type": "varchar(100)"},
+            ])
+        ]
+
+        scanner = SensitiveDataScanner()
+        results = scanner.scan(manager, "testdb", tables)
+        manager.disconnect()
+
+        email_results = [r for r in results if r.data_type == "emails" and r.count > 0]
+        assert len(email_results) == 1
+        assert email_results[0].count == 21
+
+    def test_api_keys_table_detected(self):
+        """应检测到 api_keys 表中的 API 密钥字段."""
+        from dbrecon.database import DatabaseManager
+        from dbrecon.scanner import SensitiveDataScanner
+        from dbrecon.models import DatabaseConnection, TableInfo
+
+        config = DatabaseConnection(**DB_CONFIG)
+        manager = DatabaseManager(config)
+        manager.connect()
+
+        tables = [
+            TableInfo(name="wp_api_keys", columns=[
+                {"name": "id", "type": "int"},
+                {"name": "service_name", "type": "varchar(100)"},
+                {"name": "api_key", "type": "varchar(255)"},
+                {"name": "api_secret", "type": "varchar(255)"},
+                {"name": "auth_token", "type": "varchar(512)"},
+            ])
+        ]
+
+        scanner = SensitiveDataScanner()
+        results = scanner.scan(manager, "testdb", tables)
+        manager.disconnect()
+
+        api_results = [r for r in results if r.data_type == "api_keys"]
+        api_fields = {r.field for r in api_results}
+        assert "api_key" in api_fields
+        assert "api_secret" in api_fields
+        assert "auth_token" in api_fields
+
+    def test_api_key_data_values(self):
+        """应通过数据模式匹配到包含 token/secret/key 字符串的值."""
+        from dbrecon.database import DatabaseManager
+        from dbrecon.scanner import SensitiveDataScanner
+        from dbrecon.models import DatabaseConnection, TableInfo
+
+        config = DatabaseConnection(**DB_CONFIG)
+        manager = DatabaseManager(config)
+        manager.connect()
+
+        tables = [
+            TableInfo(name="wp_options", columns=[
+                {"name": "option_name", "type": "varchar(191)"},
+                {"name": "option_value", "type": "longtext"},
+            ])
+        ]
+
+        scanner = SensitiveDataScanner()
+        results = scanner.scan(manager, "testdb", tables)
+        manager.disconnect()
+
+        token_results = [r for r in results if r.data_type == "api_keys" and r.count > 0]
+        assert len(token_results) > 0
+
+    def test_phone_numbers_detected(self):
+        """应检测到 user_profiles 表中的手机号."""
+        from dbrecon.database import DatabaseManager
+        from dbrecon.scanner import SensitiveDataScanner
+        from dbrecon.models import DatabaseConnection, TableInfo
+
+        config = DatabaseConnection(**DB_CONFIG)
+        manager = DatabaseManager(config)
+        manager.connect()
+
+        tables = [
+            TableInfo(name="wp_user_profiles", columns=[
+                {"name": "phone", "type": "varchar(20)"},
+                {"name": "mobile", "type": "varchar(20)"},
+            ])
+        ]
+
+        scanner = SensitiveDataScanner()
+        results = scanner.scan(manager, "testdb", tables)
+        manager.disconnect()
+
+        phone_results = [r for r in results if r.data_type == "phones"]
+        phone_fields = {r.field for r in phone_results}
+        assert "phone" in phone_fields
+        assert "mobile" in phone_fields
+
+    def test_phone_data_pattern_matching(self):
+        """应通过数据模式匹配到手机号."""
+        from dbrecon.database import DatabaseManager
+        from dbrecon.scanner import SensitiveDataScanner
+        from dbrecon.models import DatabaseConnection, TableInfo
+
+        config = DatabaseConnection(**DB_CONFIG)
+        manager = DatabaseManager(config)
+        manager.connect()
+
+        tables = [
+            TableInfo(name="wp_user_profiles", columns=[
+                {"name": "phone", "type": "varchar(20)"},
+                {"name": "mobile", "type": "varchar(20)"},
+            ])
+        ]
+
+        scanner = SensitiveDataScanner()
+        results = scanner.scan(manager, "testdb", tables)
+        manager.disconnect()
+
+        phone_with_data = [r for r in results if r.data_type == "phones" and r.count > 0]
+        assert len(phone_with_data) > 0
+
+    def test_credit_card_fields_detected(self):
+        """应检测到 credit_card 和 payment_token 字段."""
+        from dbrecon.database import DatabaseManager
+        from dbrecon.scanner import SensitiveDataScanner
+        from dbrecon.models import DatabaseConnection, TableInfo
+
+        config = DatabaseConnection(**DB_CONFIG)
+        manager = DatabaseManager(config)
+        manager.connect()
+
+        tables = [
+            TableInfo(name="wp_user_profiles", columns=[
+                {"name": "credit_card", "type": "varchar(20)"},
+                {"name": "payment_token", "type": "varchar(255)"},
+            ])
+        ]
+
+        scanner = SensitiveDataScanner()
+        results = scanner.scan(manager, "testdb", tables)
+        manager.disconnect()
+
+        cc_results = [r for r in results if r.data_type == "credit_cards"]
+        cc_fields = {r.field for r in cc_results}
+        assert "credit_card" in cc_fields
+        assert "payment_token" in cc_fields
+
+    def test_url_fields_detected(self):
+        """应检测到 url_refs 表中的 URL 相关字段."""
+        from dbrecon.database import DatabaseManager
+        from dbrecon.scanner import SensitiveDataScanner
+        from dbrecon.models import DatabaseConnection, TableInfo
+
+        config = DatabaseConnection(**DB_CONFIG)
+        manager = DatabaseManager(config)
+        manager.connect()
+
+        tables = [
+            TableInfo(name="wp_url_refs", columns=[
+                {"name": "source_url", "type": "varchar(512)"},
+                {"name": "target_link", "type": "varchar(512)"},
+                {"name": "host", "type": "varchar(255)"},
+                {"name": "domain", "type": "varchar(255)"},
+            ])
+        ]
+
+        scanner = SensitiveDataScanner()
+        results = scanner.scan(manager, "testdb", tables)
+        manager.disconnect()
+
+        url_results = [r for r in results if r.data_type == "urls"]
+        url_fields = {r.field for r in url_results}
+        assert "source_url" in url_fields
+        assert "target_link" in url_fields
+        assert "host" in url_fields
+        assert "domain" in url_fields
+
+    def test_url_data_pattern_matching(self):
+        """应通过数据模式匹配到 URL."""
+        from dbrecon.database import DatabaseManager
+        from dbrecon.scanner import SensitiveDataScanner
+        from dbrecon.models import DatabaseConnection, TableInfo
+
+        config = DatabaseConnection(**DB_CONFIG)
+        manager = DatabaseManager(config)
+        manager.connect()
+
+        tables = [
+            TableInfo(name="wp_url_refs", columns=[
+                {"name": "source_url", "type": "varchar(512)"},
+                {"name": "target_link", "type": "varchar(512)"},
+            ])
+        ]
+
+        scanner = SensitiveDataScanner()
+        results = scanner.scan(manager, "testdb", tables)
+        manager.disconnect()
+
+        url_with_data = [r for r in results if r.data_type == "urls" and r.count > 0]
+        assert len(url_with_data) > 0
+
+    def test_scan_all_tables_combined(self):
+        """扫描所有表应发现多种敏感数据类型."""
+        from dbrecon.database import DatabaseManager
+        from dbrecon.scanner import SensitiveDataScanner
+        from dbrecon.models import DatabaseConnection, TableInfo
+
+        config = DatabaseConnection(**DB_CONFIG)
+        manager = DatabaseManager(config)
+        manager.connect()
+
+        tables = [
+            TableInfo(name="wp_users", columns=[
+                {"name": "user_pass", "type": "varchar(255)"},
+                {"name": "user_email", "type": "varchar(100)"},
+            ]),
+            TableInfo(name="wp_api_keys", columns=[
+                {"name": "api_key", "type": "varchar(255)"},
+                {"name": "api_secret", "type": "varchar(255)"},
+                {"name": "auth_token", "type": "varchar(512)"},
+            ]),
+            TableInfo(name="wp_user_profiles", columns=[
+                {"name": "phone", "type": "varchar(20)"},
+                {"name": "mobile", "type": "varchar(20)"},
+                {"name": "credit_card", "type": "varchar(20)"},
+                {"name": "payment_token", "type": "varchar(255)"},
+            ]),
+            TableInfo(name="wp_url_refs", columns=[
+                {"name": "source_url", "type": "varchar(512)"},
+                {"name": "target_link", "type": "varchar(512)"},
+                {"name": "host", "type": "varchar(255)"},
+                {"name": "domain", "type": "varchar(255)"},
+            ]),
+            TableInfo(name="wp_options", columns=[
+                {"name": "option_name", "type": "varchar(191)"},
+                {"name": "option_value", "type": "longtext"},
+            ]),
+        ]
+
+        scanner = SensitiveDataScanner()
+        results = scanner.scan(manager, "testdb", tables)
+        manager.disconnect()
+
+        data_types = {r.data_type for r in results}
+        assert "emails" in data_types
+        assert "api_keys" in data_types
+        assert "phones" in data_types
+        assert "credit_cards" in data_types
+        assert "urls" in data_types
+
+    def test_full_scan_report_statistics(self):
+        """完整扫描报告应包含正确的统计数据."""
+        import json
+        from dbrecon.database import DatabaseManager
+        from dbrecon.fingerprint import FingerprintEngine
+        from dbrecon.scanner import SensitiveDataScanner
+        from dbrecon.reporter import ReportGenerator
+        from dbrecon.models import DatabaseConnection, TableInfo, ScanResult
+
+        config = DatabaseConnection(**DB_CONFIG)
+        manager = DatabaseManager(config)
+        manager.connect()
+
+        engine = FingerprintEngine()
+        fp_results = engine.analyze(manager, "testdb")
+
+        table_names = manager.get_table_structure("testdb", "wp_users")
+        tables = []
+        for name in manager.get_tables("testdb"):
+            try:
+                cols = manager.get_table_structure("testdb", name)
+                tables.append(TableInfo(name=name, columns=cols))
+            except Exception:
+                continue
+
+        scanner = SensitiveDataScanner()
+        sd_results = scanner.scan(manager, "testdb", tables)
+
+        scan_result = ScanResult(
+            scan_info={"target": "127.0.0.1:3307", "database": "testdb",
+                      "duration": 60},
+            fingerprint_results=fp_results,
+            sensitive_data=sd_results,
+            urls=[], database_structure={},
+            recommendations=["Full scan test"]
+        )
+
+        generator = ReportGenerator()
+        json_out = generator.generate(scan_result, "json")
+        parsed = json.loads(json_out)
+
+        assert len(parsed["fingerprint_results"]) >= 1
+        wp = next(r for r in parsed["fingerprint_results"] if r["application"] == "WordPress")
+        assert wp["version"] == "5.8.1"
+        assert "woocommerce" in wp["installed_plugins"]
+
+        data_types = {r["data_type"] for r in parsed["sensitive_data"]}
+        assert "emails" in data_types
+        assert "phones" in data_types
+        assert "credit_cards" in data_types
+        assert "urls" in data_types
+
+        manager.disconnect()
