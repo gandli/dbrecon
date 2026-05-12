@@ -163,8 +163,10 @@ class DatabaseManager:
         """Get list of tables in specified database."""
         if self.driver == self.DRIVER_MSSQL:
             results = self.execute_query(
-                f"SELECT TABLE_NAME FROM {database}.INFORMATION_SCHEMA.TABLES "
-                "WHERE TABLE_TYPE = 'BASE TABLE' ORDER BY TABLE_NAME"
+                "SELECT TABLE_NAME FROM "
+                + database
+                + ".INFORMATION_SCHEMA.TABLES "
+                "WHERE TABLE_TYPE = N'BASE TABLE' ORDER BY TABLE_NAME"
             )
         else:
             results = self.execute_query(f"SHOW TABLES FROM {database}")
