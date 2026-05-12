@@ -299,7 +299,8 @@ def full_scan(host, port, user, password, database, deep, output_format, output)
         
         # Generate final report
         scan_result = create_complete_scan_result(
-            fingerprint_results, sensitive_data, urls, database, tables
+            fingerprint_results, sensitive_data, urls, database, tables,
+            db_manager=db_manager
         )
         
         generator = ReportGenerator()
@@ -319,7 +320,7 @@ def full_scan(host, port, user, password, database, deep, output_format, output)
         db_manager.disconnect()
 
 
-def create_dummy_scan_result(fingerprint_results, database, sensitive_data=None):
+def create_dummy_scan_result(fingerprint_results, database, sensitive_data=None, host="localhost", port=3306):
     """Create a minimal scan result for reporting."""
     from dbrecon.models import ScanResult
     
@@ -328,7 +329,7 @@ def create_dummy_scan_result(fingerprint_results, database, sensitive_data=None)
     
     return ScanResult(
         scan_info={
-            "target": f"{config.host}:{config.port}",
+            "target": f"{host}:{port}",
             "scan_time": __import__('datetime').datetime.now().isoformat(),
             "duration": 10,
             "database": database
@@ -342,22 +343,25 @@ def create_dummy_scan_result(fingerprint_results, database, sensitive_data=None)
 
 
 def create_complete_scan_result(fingerprint_results, sensitive_data, urls, 
-                              database, tables):
+                              database, tables, db_manager=None, host="localhost", port=3306):
     """Create a complete scan result with all data."""
     from dbrecon.models import ScanResult, TableInfo
     
     # Create database structure info
     db_structure = {}
     for table_name in tables:
-        try:
-            columns = db_manager.get_table_structure(database, table_name)
-            db_structure[table_name] = [TableInfo(name=table_name, columns=columns)]
-        except Exception:
-            continue
+        if db_manager is not None:
+            try:
+                columns = db_manager.get_table_structure(database, table_name)
+                db_structure[table_name] = [TableInfo(name=table_name, columns=columns)]
+            except Exception:
+                continue
+        else:
+            db_structure[table_name] = [TableInfo(name=table_name, columns=[])]
     
     return ScanResult(
         scan_info={
-            "target": f"{config.host}:{config.port}",
+            "target": f"{host}:{port}",
             "scan_time": __import__('datetime').datetime.now().isoformat(),
             "duration": 60,
             "database": database
